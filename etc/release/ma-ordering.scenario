@@ -1,0 +1,25 @@
+
+graph 100
+  import brite etc/topology/RTWaxman20CONS.brite
+  show graph structure
+  export graphviz tmp/sample-barabasi-20.dot
+exit
+
+routing 200
+  routing-graph 100
+  routing-algorithm ma-ordering
+  show routing
+exit
+
+graph 200
+  import routing 200 sink-tree destination 19
+  show graph structure
+  export graphviz tmp/ba20cons-ma-ordering-to-19.dot
+  show path destination 19
+exit
+
+
+routing 200
+  show route nexthop-number
+exit
+

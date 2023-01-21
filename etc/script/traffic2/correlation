@@ -1,0 +1,27 @@
+#!/bin/sh
+
+. scenario.conf
+
+datadir=$workdir/correlation
+[ -d $datadir ] && rm -rf $datadir
+mkdir -p $datadir
+
+for topology in $topologies; do
+  logdir=$workdir/log/$topology
+  data2dir=$datadir/$topology
+  [ -d $data2dir ] && rm -rf $data2dir
+  mkdir -p $data2dir
+
+  echo $data2dir/traffic2-$topology-correlation.data
+  echo "#routing-100 routing-200 # source sink" >> $data2dir/traffic2-$topology-correlation.data
+  for s in $nodes; do
+  for t in $nodes; do
+    one=`grep "^Util: routing-100:" $logdir/*-s$s-t$t.log | awk '{print $4}'`
+    two=`grep "^Util: routing-200:" $logdir/*-s$s-t$t.log | awk '{print $4}'`
+    echo "${one} ${two} # s$s t$t" >> $data2dir/traffic2-$topology-correlation.data
+  done
+  done
+
+done
+
+

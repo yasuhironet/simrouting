@@ -1,0 +1,21 @@
+#!/bin/sh
+
+. scenario.conf
+
+logdir=$workdir/log
+[ -d $logdir ] && rm -rf $logdir
+mkdir -p $logdir
+
+for topology in $topologies ; do
+  scenariodir=$workdir/scenario/$topology
+  log2dir=$workdir/log/$topology
+  [ -d $log2dir ] && rm -rf $log2dir
+  mkdir -p $log2dir
+
+  for seed in $seeds; do
+    echo $simrouting $scenariodir/traffic1-$topology-seed${seed}.scenario
+    /usr/bin/time $simrouting $scenariodir/traffic1-$topology-seed${seed}.scenario \
+                >& $log2dir/traffic1-$topology-seed${seed}.log
+  done
+done
+

@@ -1,0 +1,19 @@
+
+graph 100
+ import brite etc/topology/RTBarabasi20UNI.brite
+exit
+show graph 100 structure
+
+weight 100
+ weight-graph 100
+ weight-setting minimum-hop
+exit
+show weight 100
+
+routing 100
+ routing-graph 100
+ routing-weight 100
+ routing-algorithm dijkstra
+exit
+show routing 100
+

@@ -1,0 +1,35 @@
+graph 100
+import brite etc/topology/topology.brite
+exit
+
+weight 100
+weight-graph 100
+weight-setting inverse-capacity
+exit
+
+routing 100
+routing-graph 100
+routing-weight 100
+network-routing 100
+exit
+routing 200
+routing-graph 100
+network-routing 200
+exit
+
+traffic 100
+traffic-graph 100
+traffic-seed 995
+traffic-set random random bandwidth 600
+exit
+
+network 100
+network-graph 100
+network-traffic 100
+network-load traffic-flows
+exit
+network 200
+network-graph 100
+network-traffic 100
+network-load traffic-flows
+exit

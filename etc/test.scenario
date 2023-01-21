@@ -1,0 +1,45 @@
+graph 100
+ import brite etc/topology/topology.brite
+exit
+
+weight 100
+ weight-graph 100
+ weight-setting inverse-capacity
+exit
+show weight 100
+
+routing 100
+ routing-graph 100
+ routing-weight 100
+ routing-algorithm dijkstra
+exit
+show routing 100
+
+routing 200
+ routing-graph 100
+ routing-algorithm lbra
+exit
+show routing 200
+
+traffic 100
+ traffic-graph 100
+ traffic-seed 995
+ traffic-set random random bandwidth 600
+exit
+
+network 100
+ network-graph 100
+ network-traffic 100
+ network-routing 100
+ network-load traffic-flows
+exit
+show network 100
+
+network 200
+ network-graph 100
+ network-traffic 100
+ network-routing 200
+ network-load traffic-flows
+exit
+show network 200
+

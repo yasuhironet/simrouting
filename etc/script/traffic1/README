@@ -1,0 +1,19 @@
+
+scenario.conf:
+	common configurations for this scenario. specify e.g. where the
+	log file will be saved, etc.
+
+scenario-gen
+	Use "sh scenario-gen" to generate many scenario files.
+	this will include scenario.conf and writes scenario files
+	in the directory specified by $scenariodir in the conf.
+
+scenario-exe
+	Use "sh scenario-exe" to xecute each scenario using above scenario files.
+
+create-data
+	Use "sh create-data" to grep max-utilization for each seed.
+
+create-data2
+	Use "sh create-data2" to sort above data by max-utilization.
+

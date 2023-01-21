@@ -1,0 +1,23 @@
+
+graph 200
+ import rule fujisawa-noc 10 router 203.178.143.0/25
+ import ospf localhost public 0.0.0.0 with rule fujisawa-noc
+ show graph structure
+ export graphviz wide-ospf-net-fujisawa.dot
+
+rule 10 match node domain-name suffix PATTERN
+
+match-rule fujisawa-router 10 match domain-name suffix fujisawa.wide.ad.jp
+match-rule fujisawa-router 20 no-match domain-name suffix wide.ad.jp
+match-rule fujisawa-router 30 match node-id range 203.178.143.0/24
+
+group fujisawa-noc 10 match domain-suffix fujisawa.wide.ad.jp
+group fujisawa-noc 20 match router-id-range 203.178.143.0/24
+group fujisawa-noc 30 match network-id 203.178.143.0/24
+
+graph 1000
+  import ospf localhost public 0.0.0.0
+  contract edges both node match group fujisawa-noc name fujisawa-noc
+  contract edges (either|both) node (match|no-match) fujisawa-router
+  delete edges (either|both) node (match|no-match) fujisawa-router
+

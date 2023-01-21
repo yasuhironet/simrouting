@@ -1,0 +1,36 @@
+#!/bin/sh
+
+. scenario.conf
+
+datadir=$workdir/degree-dist
+[ -d $datadir ] && rm -rf $datadir
+mkdir -p $datadir
+
+for topology in $topologies; do
+  logdir=$workdir/log/$topology
+  data2dir=$datadir/$topology
+  [ -d $data2dir ] && rm -rf $data2dir
+  mkdir -p $data2dir
+
+  for s in $nodes; do
+  for t in $nodes; do
+    one=`grep "^Util: routing-100:" $logdir/*-s$s-t$t.log | awk '{print $4}'`
+    two=`grep "^Util: routing-200:" $logdir/*-s$s-t$t.log | awk '{print $4}'`
+    echo "${one} # s$s t$t" >> $data2dir/traffic2-$topology-r100.data
+    echo "${two} # s$s t$t" >> $data2dir/traffic2-$topology-r200.data
+  done
+  done
+
+  echo $data2dir/traffic2-$topology-degree-dist-r100.data
+  cat $data2dir/traffic2-$topology-r100.data | \
+    awk '{printf "%.2f\n", $1}' | sort -n | uniq -c | awk '{print $2, $1}' \
+      > $data2dir/traffic2-$topology-degree-dist-r100.data
+
+  echo $data2dir/traffic2-$topology-degree-dist-r200.data
+  cat $data2dir/traffic2-$topology-r200.data | \
+    awk '{printf "%.2f\n", $1}' | sort -n | uniq -c | awk '{print $2, $1}' \
+      > $data2dir/traffic2-$topology-degree-dist-r200.data
+
+done
+
+

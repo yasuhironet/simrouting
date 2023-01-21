@@ -1,0 +1,32 @@
+#!/bin/sh
+
+. scenario.conf
+
+# topologies=WA-20-RN-U
+
+datadir=$workdir/degree-dist
+[ -d $datadir ] && rm -rf $datadir
+mkdir -p $datadir
+
+for topology in $topologies; do
+  logdir=$workdir/log/$topology
+  data2dir=$datadir/$topology
+  [ -d $data2dir ] && rm -rf $data2dir
+  mkdir -p $data2dir
+
+  for seed in $seeds; do
+    one=`grep "^Util: routing-100:" $logdir/*-seed${seed}.log | awk '{print $4}'`
+    two=`grep "^Util: routing-200:" $logdir/*-seed${seed}.log | awk '{print $4}'`
+    echo -n "$seed "
+    echo "${one}-${two}" | bc
+    echo "${one}-${two}" | bc >> $data2dir/traffic1-$topology-diffs.data
+  done
+
+  echo $data2dir/traffic1-$topology-degree-dist.data
+  cat $data2dir/traffic1-$topology-diffs.data | \
+    awk '{printf "%.3f\n", $1}' | sort -n | uniq -c | awk '{print $2, $1}' \
+      > $data2dir/traffic1-$topology-degree-dist.data
+
+done
+
+

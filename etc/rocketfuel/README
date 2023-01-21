@@ -1,0 +1,10 @@
+This directory contains the topology files from Rocketfuel Project.
+The redistribution of the files is achieved under the permission by
+the project. Description of the project and original files can be
+found in the project's URL:
+http://www.cs.washington.edu/research/networking/rocketfuel/
+
+As of 2008/01/18, the files' md5 checksum was:
+9aea747157b1fee6eb6b84dc18ba0782  rocketfuel_maps_cch.tar.gz
+b58068a8f840c430549a8e13f608de3d  weights-dist.tar.gz
+

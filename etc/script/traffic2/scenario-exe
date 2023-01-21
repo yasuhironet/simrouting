@@ -1,0 +1,23 @@
+#!/bin/sh
+
+. scenario.conf
+
+logdir=$workdir/log
+[ -d $logdir ] && rm -rf $logdir
+mkdir -p $logdir
+
+for topology in $topologies ; do
+  scenariodir=$workdir/scenario/$topology
+  log2dir=$workdir/log/$topology
+  [ -d $log2dir ] && rm -rf $log2dir
+  mkdir -p $log2dir
+
+  for s in $nodes; do
+  for t in $nodes; do
+    echo $simrouting $scenariodir/traffic2-$topology-s$s-t$t.scenario
+    /usr/bin/time $simrouting $scenariodir/traffic2-$topology-s$s-t$t.scenario \
+                >& $log2dir/traffic2-$topology-s$s-t$t.log
+  done
+  done
+done
+

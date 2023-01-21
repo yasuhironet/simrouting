@@ -1,0 +1,287 @@
+     1	/*
+     2	 * Copyright (C) 2007  Yasuhiro Ohara
+     3	 * 
+     4	 * This file is part of SimRouting.
+     5	 * 
+     6	 * SimRouting is free software; you can redistribute it and/or modify
+     7	 * it under the terms of the GNU General Public License as published by
+     8	 * the Free Software Foundation; either version 2 of the License, or
+     9	 * (at your option) any later version.
+    10	 * 
+    11	 * SimRouting is distributed in the hope that it will be useful,
+    12	 * but WITHOUT ANY WARRANTY; without even the implied warranty of
+    13	 * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    14	 * GNU General Public License for more details.
+    15	 * 
+    16	 * You should have received a copy of the GNU General Public License
+    17	 * along with this program; if not, write to the Free Software
+    18	 * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+    19	*/
+    20	
+    21	#include <includes.h>
+    22	
+    23	#include "vector.h"
+    24	#include "shell.h"
+    25	#include "command.h"
+    26	#include "command_shell.h"
+    27	#include "file.h"
+    28	#include "timer.h"
+    29	#include "pqueue.h"
+    30	
+    31	#include "network/graph.h"
+    32	#include "network/weight.h"
+    33	#include "network/path.h"
+    34	#include "network/routing.h"
+    35	
+    36	#include "routing/mara-mc-mmmf.h"
+    37	#include "routing/dijkstra.h"
+    38	#include "routing/reverse-dijkstra.h"
+    39	
+    40	typedef int (*cmp_t) (void *, void *);
+    41	
+    42	void
+    43	routing_mara_spe (struct node *t, cmp_t cmp_func, struct weight *weight,
+    44	                  struct mara_node **mara_data)
+    45	{
+    46	  struct vector_node *vn;
+    47	  struct pqueue *pqueue;
+    48	  unsigned int label = 1;
+    49	  struct mara_node *c, *v;
+    50	
+    51	  struct dijkstra_path *dijkstra_table;
+    52	  struct dijkstra_path *w;
+    53	  int notyet;
+    54	  struct vector_node *vnn;
+    55	
+    56	  /* compute SPT */
+    57	  dijkstra_table = dijkstra_table_create (t->g);
+    58	  routing_reverse_dijkstra (t, weight, dijkstra_table);
+    59	
+    60	  /* Priority queue (Heap sort) */
+    61	  pqueue = pqueue_create ();
+    62	  pqueue->cmp = cmp_func;
+    63	  pqueue->update = mara_pqueue_index_update;
+    64	
+    65	  /* The first candidate is the destination itself */
+    66	#define MARA_ADJ_INFINITY UINT_MAX
+    67	#define MARA_BW_INFINITY UINT_MAX
+    68	  c = &mara_data[t->id][t->id];
+    69	  c->node = t;
+    70	  c->adjacency = MARA_ADJ_INFINITY;
+    71	  c->bandwidth = MARA_BW_INFINITY;
+    72	
+    73	  /* Install the destination itself in the priority queue */
+    74	  pqueue_enqueue (c, pqueue);
+    75	
+    76	  /* Continue until the priority queue becomes empty */
+    77	  while (pqueue->size)
+    78	    {
+    79	      /* retrieve the most preferred node candidate */
+    80	      c = pqueue_dequeue (pqueue);
+    81	
+    82	      /* skip if it is already labeled */
+    83	      if (c->label != 0)
+    84	        continue;
+    85	
+    86	      /* label the node newly. */
+    87	      c->label = label++;
+    88	
+    89	      /* Call the just decided vertex "v" */
+    90	      v = c;
+    91	
+    92	      /* for each neighbor "w" of v */
+    93	      for (vn = vector_head (v->node->ilinks); vn; vn = vector_next (vn))
+    94	        {
+    95	          struct link *link = (struct link *) vector_data (vn);
+    96	          struct node *candidate = link->from;
+    97	
+    98	          w = &dijkstra_table[candidate->id];
+    99	          c = &mara_data[t->id][candidate->id];
+   100	
+   101	          /* skip if the neighbor candidate w is already labeled */
+   102	          if (c->label > 0)
+   103	            continue;
+   104	
+   105	          /* update the candidate */
+   106	          c->node = candidate;
+   107	          c->adjacency++;
+   108	          c->bandwidth += (link->bandwidth ? link->bandwidth : 0) ;
+   109	
+   110	          /* check whether all successor nodes in the SPT are
+   111	             already labeled. */
+   112	          notyet = 0;
+   113	          for (vnn = vector_head (w->nexthops); vnn;
+   114	               vnn = vector_next (vnn))
+   115	            {
+   116	              struct node *n = (struct node *) vector_data (vnn);
+   117	              struct mara_node *u = &mara_data[t->id][n->id];
+   118	              if (! u->label)
+   119	                notyet++;
+   120	            }
+   121	
+   122	          /* skip if not all successors in the SPT are labeled */
+   123	          if (notyet)
+   124	            continue;
+   125	
+   126	          /* Newly enqueue, or update in the priority queue */
+   127	          if (c->pqueue_index < 0)
+   128	            pqueue_enqueue (c, pqueue);
+   129	          else
+   130	            pqueue_update (c->pqueue_index, pqueue);
+   131	        }
+   132	    }
+   133	
+   134	  pqueue_delete (pqueue);
+   135	
+   136	  /* free SPT */
+   137	  dijkstra_table_delete (t->g, dijkstra_table);
+   138	}
+   139	
+   140	void
+   141	routing_mara_spe_node (struct node *node, struct routing *R)
+   142	{
+   143	  struct vector_node *vn;
+   144	  mara_data_clear (R->G, R->data);
+   145	  for (vn = vector_head (node->g->nodes); vn; vn = vector_next (vn))
+   146	    {
+   147	      struct node *t = (struct node *) vector_data (vn);
+   148	      routing_mara_spe (t, mara_mc_cmp, R->W, R->data);
+   149	    }
+   150	  routing_mara_route_node (node, R);
+   151	}
+   152	
+   153	
+   154	void
+   155	routing_mara_spe_all (struct routing *R)
+   156	{
+   157	  struct vector_node *vn;
+   158	  mara_data_clear (R->G, R->data);
+   159	  for (vn = vector_head (R->G->nodes); vn; vn = vector_next (vn))
+   160	    {
+   161	      struct node *t = (struct node *) vector_data (vn);
+   162	      routing_mara_spe (t, mara_mc_cmp, R->W, R->data);
+   163	    }
+   164	  for (vn = vector_head (R->G->nodes); vn; vn = vector_next (vn))
+   165	    {
+   166	      struct node *s = (struct node *) vector_data (vn);
+   167	      routing_mara_route_node (s, R);
+   168	    }
+   169	}
+   170	
+   171	DEFINE_COMMAND (routing_algorithm_mara_spe,
+   172	                "routing-algorithm mara-spe",
+   173	                ROUTING_ALGORITHM_HELP_STR
+   174	                "MARA-SPE (Shortest Path Extension).\n")
+   175	{
+   176	  struct shell *shell = (struct shell *) context;
+   177	  struct routing *routing = (struct routing *) shell->context;
+   178	  timer_counter_t start, end, res;
+   179	
+   180	  if (routing->G == NULL)
+   181	    {
+   182	      fprintf (shell->terminal, "no graph specified for routing.\n");
+   183	      return;
+   184	    }
+   185	  if (routing->W == NULL)
+   186	    {
+   187	      fprintf (shell->terminal, "no weight specified for routing.\n");
+   188	      return;
+   189	    }
+   190	
+   191	  if (routing->data == NULL)
+   192	    routing->data = mara_data_create (routing->G);
+   193	
+   194	  timer_count (start);
+   195	  routing_mara_spe_all (routing);
+   196	  timer_count (end);
+   197	
+   198	  timer_sub (start, end, res);
+   199	  fprintf (shell->terminal, "MARA-SPE overall calculation "
+   200	           "time: %llu us\n", timer_to_usec (res));
+   201	}
+   202	
+   203	DEFINE_COMMAND (routing_algorithm_mara_spe_node,
+   204	                "routing-algorithm mara-spe node " NODE_SPEC,
+   205	                ROUTING_ALGORITHM_HELP_STR
+   206	                "MARA-SPE (Shortest Path Extension).\n"
+   207	                "Specify node to calculate routes\n"
+   208	                NODE_SPEC_HELP_STR)
+   209	{
+   210	  struct shell *shell = (struct shell *) context;
+   211	  struct routing *routing = (struct routing *) shell->context;
+   212	  struct node *node;
+   213	  unsigned long node_id;
+   214	  timer_counter_t start, end, res;
+   215	
+   216	  if (routing->G == NULL)
+   217	    {
+   218	      fprintf (shell->terminal, "no graph specified for routing.\n");
+   219	      return;
+   220	    }
+   221	  if (routing->W == NULL)
+   222	    {
+   223	      fprintf (shell->terminal, "no weight specified for routing.\n");
+   224	      return;
+   225	    }
+   226	
+   227	  if (routing->data == NULL)
+   228	    routing->data = mara_data_create (routing->G);
+   229	
+   230	  node_id = strtoul (argv[3], NULL, 0);
+   231	  node = node_lookup (node_id, routing->G);
+   232	  if (! node)
+   233	    {
+   234	      fprintf (shell->terminal, "No such node: %lu\n", node_id);
+   235	      return;
+   236	    }
+   237	
+   238	  timer_count (start);
+   239	  routing_mara_spe_node (node, routing);
+   240	  timer_count (end);
+   241	
+   242	  timer_sub (start, end, res);
+   243	  fprintf (shell->terminal, "MARA-SPE calculation time "
+   244	           "for node %u: %llu us\n", node->id, timer_to_usec (res));
+   245	}
+   246	
+   247	DEFINE_COMMAND (routing_algorithm_mara_spe_node_all,
+   248	                "routing-algorithm mara-spe node all",
+   249	                ROUTING_ALGORITHM_HELP_STR
+   250	                "MARA-SPE (Shortest Path Extension).\n"
+   251	                "Specify node to calculate routes\n"
+   252	                "Calculate on all node individually\n")
+   253	{
+   254	  struct shell *shell = (struct shell *) context;
+   255	  struct routing *routing = (struct routing *) shell->context;
+   256	  struct node *node;
+   257	  struct vector_node *vn;
+   258	  timer_counter_t start, end, res;
+   259	
+   260	  if (routing->G == NULL)
+   261	    {
+   262	      fprintf (shell->terminal, "no graph specified for routing.\n");
+   263	      return;
+   264	    }
+   265	  if (routing->W == NULL)
+   266	    {
+   267	      fprintf (shell->terminal, "no weight specified for routing.\n");
+   268	      return;
+   269	    }
+   270	
+   271	  if (routing->data == NULL)
+   272	    routing->data = mara_data_create (routing->G);
+   273	
+   274	  for (vn = vector_head (routing->G->nodes); vn; vn = vector_next (vn))
+   275	    {
+   276	      node = (struct node *) vn->data;
+   277	
+   278	      timer_count (start);
+   279	      routing_mara_spe_node (node, routing);
+   280	      timer_count (end);
+   281	
+   282	      timer_sub (start, end, res);
+   283	      fprintf (shell->terminal, "MARA-SPE calculation time "
+   284	               "for node %u: %llu us\n", node->id, timer_to_usec (res));
+   285	    }
+   286	}
+   287	
