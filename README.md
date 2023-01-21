@@ -15,4 +15,10 @@ lib/routing/reverse-dijkstra.c: reverse version of Dijkstra
 lib/routing/mara-spe.c: MARA-SPE
 ```
 
+The paper draft of this simulator was not published (I gave up).
+The draft is in doc/.
+
+```
+doc/simrouting-ipsj2008.pdf
+```
 
